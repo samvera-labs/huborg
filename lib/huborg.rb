@@ -10,6 +10,7 @@ module Huborg
   #
   # * {#push_template!} - push a file to all repositories
   # * {#clone_and_rebase!} - download all repositories for the org
+  # * {#audit_license} - tooling to check the licenses of your org
   class Client
     # Match all repositories
     DEFAULT_REPOSITORY_PATTERN = %r{\A.*\Z}
@@ -82,6 +83,40 @@ module Huborg
     def push_template!(template:, filename:, overwrite: false)
       each_github_repository do |repo|
         push_template_to!(repo: repo, template: template, filename: filename, overwrite: overwrite)
+      end
+      true
+    end
+
+    # @api public
+    #
+    # Responsible for logging (as an error) repositories that do not
+    # have a license.
+    #
+    # @param skip_private [Boolean] do not check private repositories for a
+    #        license
+    # @param skip_archived [Boolean] do not check archived repositories
+    #        for license
+    # @param allowed_licenses [Array<String>, :all] the licenses which are
+    #        allowed, in all other cases, log as an error. This checks
+    #        the :key of a license object in Github's API (see
+    #        https://api.github.com/licenses)
+    #
+    # @see https://api.github.com/licenses for a list of license keys
+    # @return [True] the task completed without exception (there may be
+    #         logged errors)
+    def audit_license(skip_private: true, skip_archived: true, allowed_licenses: :all)
+      license_list = Array(allowed_licenses)
+      each_github_repository do |repo|
+        next if skip_private && repo.private?
+        next if skip_archived && repo.archived?
+        if repo.license
+          logger.info(%(#{repo.fullname} has "#{repo.license.key}"))
+          next if allowed_licenses == :all
+          next if license_list.include?(repo.license.key)
+          logger.error(%(#{repo.full_name} has "#{repo.license.key}" which is not in #{license_list.inspect}))
+        else
+          logger.error("#{repo.full_name} is missing a license")
+        end
       end
       true
     end

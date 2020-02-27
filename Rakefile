@@ -23,4 +23,13 @@ namespace :test do
     directory = ENV.fetch("DIRECTORY") { File.join(ENV.fetch("HOME"), "git") }
     client.clone_and_rebase!(directory: directory)
   end
+
+  task :audit_license do
+    require 'huborg'
+    client = Huborg::Client.new(
+      github_access_token: ENV.fetch("GITHUB_ACCESS_TOKEN"),
+      org_names: ENV.fetch("GITHUB_ORG_NAME")
+    )
+    client.audit_license
+  end
 end
