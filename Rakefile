@@ -32,4 +32,13 @@ namespace :test do
     )
     client.audit_license
   end
+
+  task :mailmap do
+    require 'huborg'
+    client = Huborg::Client.new(
+      github_access_token: ENV.fetch("GITHUB_ACCESS_TOKEN"),
+      org_names: ENV.fetch("GITHUB_ORG_NAME")
+    )
+    client.synchronize_mailmap!(template: ENV.fetch("MAILMAP_TEMPLATE_FILENAME"))
+  end
 end

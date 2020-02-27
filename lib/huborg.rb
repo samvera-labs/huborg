@@ -2,6 +2,7 @@ require "huborg/version"
 require 'octokit'
 require 'git'
 require 'fileutils'
+require 'set'
 
 module Huborg
   class Error < RuntimeError; end
@@ -11,6 +12,8 @@ module Huborg
   # * {#push_template!} - push a file to all repositories
   # * {#clone_and_rebase!} - download all repositories for the org
   # * {#audit_license} - tooling to check the licenses of your org
+  # * {#synchronize_mailmap!} - ensure all git .mailmap files are
+  #   synchronized
   class Client
     # Match all repositories
     DEFAULT_REPOSITORY_PATTERN = %r{\A.*\Z}
@@ -119,6 +122,58 @@ module Huborg
         end
       end
       true
+    end
+
+    # @api public
+    #
+    # Responsible for taking a template that confirms to Git's .mailmap
+    # file format (e.g. https://github.com/samvera/maintenance/blob/master/templates/MAILMAP)
+    # and adding in all .mailmap entries that exist within the
+    # organizations repositories. This merged .mailmap is then pushed
+    # out, via a pull request, to all of the non-archived repositories.
+    #
+    # @param template [String] path to the source template for .mailmap
+    #        This does assume that there were prior efforts at
+    #        consolidating a .mailmap file. If you don't have this,
+    #        pass an empty file.
+    # @param consolidated_template [String] path that we will write our
+    #        changes, this file will be pushed to all non-archived
+    #        repositories
+    # @return [True] if successfully completed
+    # @see https://www.git-scm.com/docs/git-check-mailmap for more on
+    #      git's .mailmap file
+    # @todo Ensure that this doesn't create a pull request if nothing
+    #       has changed.
+    def synchronize_mailmap!(template:, consolidated_template: template)
+      mailmap_lines = Set.new
+      File.read(template).split("\n").each do |line|
+        mailmap_lines << line unless line.empty?
+      end
+
+      each_github_repository do |repo|
+        begin
+          mailmap = client.contents(repo.full_name, path: '.mailmap')
+          lines = mailmap.rels[:download].get.data
+          lines.split("\n").each do |line|
+            mailmap_lines << line
+          end
+        rescue Octokit::NotFound
+          next
+        end
+      end
+
+      # Write the contents to a file
+      File.open(consolidated_template, "w+") do |file|
+        mailmap_lines.to_a.sort.each do |line|
+          file.puts line
+        end
+      end
+
+      each_github_repository do |repo|
+        next if repo.archived?
+        push_template_to!(filename: ".mailmap", template: consolidated_template, repo: repo, overwrite: true)
+      end
+      return true
     end
 
     # @api public
