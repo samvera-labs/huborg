@@ -13,4 +13,14 @@ namespace :test do
       filename: "disposable-#{Time.now.utc.to_s.gsub(/\D+/,'')}.rake"
     )
   end
+
+  task :clone_and_rebase do
+    require 'huborg'
+    client = Huborg::Client.new(
+      github_access_token: ENV.fetch("GITHUB_ACCESS_TOKEN"),
+      org_names: ENV.fetch("GITHUB_ORG_NAME")
+    )
+    directory = ENV.fetch("DIRECTORY") { File.join(ENV.fetch("HOME"), "git") }
+    client.clone_and_rebase!(directory: directory)
+  end
 end
