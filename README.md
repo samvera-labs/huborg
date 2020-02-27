@@ -75,26 +75,17 @@ expect to see [Hyrax](https://github.com/samvera/hyrax) cloned into
 `~/git/samvera/hyrax` and [Huborg](https://github.com/samvera-labs/huborg)
 cloned into `~/git/samvera-labs/huborg`
 
-## Further Refinements
-
-This example demonstrates the full parameter options:
-
 ```ruby
 require 'huborg'
-require 'logger'
-
-client = Huborg::Client.new(
-    org_names: ["samvera", "samvera-labs"]),
-    logger: Logger.new(STDOUT),
-    github_access_token: "my-super-secret-token",
-    repository_pattern: %r{hyrax}i, # Limit to repositories with full name "hyrax"
-)
-client.push_template!(
-  template: "/path/to/file/on/your/system",
-  filename: "relative/path/in/repository",
-  overwrite: true
-)
+# NOTE: You will need to include GITHUB_ACCESS_TOKEN in your ENV
+client = Huborg::Client.new(org_names: ["samvera"])
+client.audit_license
 ```
+
+The above script leverages Github's API to check each repository's
+license. Log as an error each repository that does not have a license.
+
+**All of the commands have several parameters, many set to default values.**
 
 ## Prerequisites
 
