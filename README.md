@@ -45,6 +45,12 @@ client = Huborg::Client.new(org_names: ["samvera", "samvera-labs"])
 client.push_template!(
   template: "/path/to/file/on/your/system",
   filename: "relative/path/in/repository"
+
+# This will clone all repositories from samvera and samvera-labs.
+# You can expect to see something in `~/git/samvera/hyrax` and
+# `~/git/samvera-labs/huborg`
+client.clone_and_rebase!(
+  directory: File.join(ENV["HOME"], "git")
 )
 ```
 
@@ -52,6 +58,22 @@ The above will create a pull request against all repositories in
 "samvera" and "samvera-labs". That pull request will be to the file
 named `repository` (in the directory `relative/path/in`). The file's
 content will be from the file `/path/to/file/on/your/system`.
+
+```ruby
+require 'huborg'
+
+# NOTE: You will need to include GITHUB_ACCESS_TOKEN in your ENV
+client = Huborg::Client.new(org_names: ["samvera", "samvera-labs"])
+client.clone_and_rebase!(
+  directory: File.join(ENV["HOME"], "git")
+)
+```
+
+The above will clone and rebase all repositories from samvera and
+samvera-labs. The script will skip existing repositories. You can
+expect to see [Hyrax](https://github.com/samvera/hyrax) cloned into
+`~/git/samvera/hyrax` and [Huborg](https://github.com/samvera-labs/huborg)
+cloned into `~/git/samvera-labs/huborg`
 
 ## Further Refinements
 
@@ -95,12 +117,6 @@ $ export GITHUB_ACCESS_TOKEN=their-github-token
 $ export GITHUB_ORG_NAME=their-organization
 $ bundle exec rake test:push_template
 ```
-
-## Todo
-
-- [ ] Add method to clone repositories
-- [ ] Add method to pull changes from upstream repositories
-- [ ] Add method to run stats against local repositories
 
 # Acknowledgments
 
