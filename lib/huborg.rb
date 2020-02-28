@@ -4,7 +4,10 @@ require 'git'
 require 'fileutils'
 require 'set'
 
+# A module for interacting with Github organizations
 module Huborg
+  # If there's a problem with Huborg, expect to see this error OR an
+  # error from an underlying library.
   class Error < RuntimeError; end
 
   # The class that interacts with organizational repositories.
@@ -15,19 +18,38 @@ module Huborg
   # * {#synchronize_mailmap!} - ensure all git .mailmap files are
   #   synchronized
   class Client
-    # Match all repositories
+    # When checking repository names, this pattern will match all repositories.
+    # @see #initialize `#initialize` for details on the repository pattern.
     DEFAULT_REPOSITORY_PATTERN = %r{\A.*\Z}
 
+    # @since v0.1.0
+    #
     # @param logger [Logger] used in logging output of processes
     # @param github_access_token [String] used to connect to the Oktokit::Client.
     #        The given token will need to have permission to interact with
     #        repositories. Defaults to ENV["GITHUB_ACCESS_TOKEN"]
-    # @param org_names [Array<String>] used as the default list of Github organizations
+    # @param org_names [Array<String>, String] used as the default list of Github organizations
     #        in which we'll interact.
     # @param repository_pattern [Regexp] limit the list of repositories to the given pattern; defaults to ALL
     #
-    # @see https://github.com/octokit/octokit.rb#oauth-access-tokens for OAuth Tokens
-    # @see https://developer.github.com/v3/repos/#list-organization-repositories for repository data structures
+    # @example
+    #   # Without configuration options. You'll want ENV["GITHUB_ACCESS_TOKEN"]
+    #   # to be assigned.
+    #   client = Huborg::Client.new(org_names: ["samvera", "samvera-labs"])
+    #
+    #   # With explicit configuration options. Note, we'll be interacting only
+    #   # with repositories that contain the case-insensitive word "hyrax" (case-
+    #   # insensitivity is declared as the `i` at the end of the regular
+    #   # expression).
+    #   client = Huborg::Client.new(
+    #                               logger: Logger.new(STDOUT),
+    #                               github_access_token: "40-random-characters-for-your-token",
+    #                               org_names: ["samvera", "samvera-labs"],
+    #                               repository_patter: %r{hyrax}i
+    #                              )
+    #
+    # @see https://github.com/octokit/octokit.rb#oauth-access-tokens Octokit's documentation for OAuth Tokens
+    # @see https://developer.github.com/v3/repos/#list-organization-repositories Github's documentation for repository data structures
     def initialize(logger: default_logger, github_access_token: default_access_token, org_names:, repository_pattern: DEFAULT_REPOSITORY_PATTERN)
       @logger = logger
       @client = Octokit::Client.new(access_token: github_access_token)
@@ -55,6 +77,7 @@ module Huborg
     public
 
     # @api public
+    # @since v0.1.0
     #
     # Responsible for pushing the given template file to all of the
     # organizations repositories. As we are pushing changes to
@@ -104,7 +127,7 @@ module Huborg
     #        the :key of a license object in Github's API (see
     #        https://api.github.com/licenses)
     #
-    # @see https://api.github.com/licenses for a list of license keys
+    # @see https://api.github.com/licenses Github's documentation for a list of license keys
     # @return [True] the task completed without exception (there may be
     #         logged errors)
     def audit_license(skip_private: true, skip_archived: true, allowed_licenses: :all)
@@ -140,8 +163,8 @@ module Huborg
     #        changes, this file will be pushed to all non-archived
     #        repositories
     # @return [True] if successfully completed
-    # @see https://www.git-scm.com/docs/git-check-mailmap for more on
-    #      git's .mailmap file
+    # @see https://www.git-scm.com/docs/git-check-mailmap Git's documentation
+    #      for more on git's .mailmap file
     # @todo Ensure that this doesn't create a pull request if nothing
     #       has changed.
     def synchronize_mailmap!(template:, consolidated_template: template)
@@ -255,8 +278,8 @@ module Huborg
     end
 
     # @note Due to an implementation detail in octokit.rb, refs sometimes
-    # need to be "heads/master" and "refs/heads/master" as detailed
-    # below
+    #       need to be "heads/master" and "refs/heads/master" as detailed
+    #       below
     # @param repo [#full_name, #archived] Likely the result of Octokit::Client#org
     # @param template [String] name of the template to push out to all
     #        repositories
@@ -352,7 +375,7 @@ module Huborg
     #        given org
     # @param org [Object] An Organization object (provided by Oktokit
     #        object) from which this method fetchs the related :rel
-
+    #
     # @return [Array<Object>]
     def fetch_rel_for(rel:, org:)
       # Build a list of repositories, note per Github's API, these are
