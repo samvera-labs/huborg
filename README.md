@@ -122,6 +122,20 @@ $ export GITHUB_ORG_NAME=their-organization
 $ bundle exec rake test:push_template
 ```
 
+## Documentation
+
+The product owner encourages you to clone this repository and generate the
+documentation.
+
+- [ ] `git clone https://github.com/samvera-labs/huborg`
+- [ ] `cd huborg`
+- [ ] `git checkout master && git pull --rebase`
+- [ ] `gem install yard`
+- [ ] `yard`
+
+The above process will generate documentation in `./doc`. Open `./doc/index.html`
+in your browser. (On OSX, try `open ./doc/index.html`).
+
 # Acknowledgments
 
 This software has been developed by and is brought to you by the Samvera community.  Learn more at the
