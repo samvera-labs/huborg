@@ -26,4 +26,5 @@ Gem::Specification.new do |spec|
   spec.add_dependency "octokit", "~> 4.16"
   spec.add_dependency "git", "~> 1.6"
   spec.add_development_dependency "byebug"
+  spec.add_development_dependency "github_changelog_generator"
 end
