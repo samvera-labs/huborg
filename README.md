@@ -136,6 +136,31 @@ documentation.
 The above process will generate documentation in `./doc`. Open `./doc/index.html`
 in your browser. (On OSX, try `open ./doc/index.html`).
 
+## Releasing Huborg
+
+Huborg uses [Semantic Versioning](https://semver.org/).
+
+Below is the checklist:
+
+- [ ] An internet connection
+- [ ] A [Github Access Token](https://developer.github.com/apps/building-oauth-apps/authorizing-oauth-apps/)
+- [ ] Your access token exported to `ENV["CHANGELOG_GITHUB_TOKEN"]`
+- [ ] Verify you are a [huborg gem owner](https://rubygems.org/gems/huborg). If not, Samvera uses
+      [`grant_revoke_gem_authority`](https://github.com/samvera/maintenance/blob/master/script/grant_revoke_gem_authority.rb)
+      to manage the gem owners.
+- [ ] Verify that you can push changes to https://github.com/samvera-labs/huborg
+- [ ] Check that you have a clean git index
+- [ ] Pull down the latest version of master
+- [ ] Update the Huborg::VERSION (in ./lib/huborg/version.rb); Remember, huborg
+      uses [Semantic Versioning](https://semver.org). (_**NOTE:** Do not commit the version change_)
+- [ ] Run `bundle exec rake changelog` to generate [CHANGELOG.md](./CHANGELOG.md)
+- [ ] Review the new Huborg::VERSION CHANGELOG.md entries as they might prompt
+      you to consider a different version (e.g. what you thought was a bug fix
+      release is in fact a minor version release). Look at the changelog from
+      the perspective of a person curious about using this gem.
+- [ ] Commit your changes with a simple message: "Bumping to v#{Huborg::VERSION}"
+- [ ] Run `bundle exec rake release`
+
 # Acknowledgments
 
 This software has been developed by and is brought to you by the Samvera community.  Learn more at the
