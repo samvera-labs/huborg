@@ -85,6 +85,19 @@ client.audit_license
 The above script leverages Github's API to check each repository's
 license. Log as an error each repository that does not have a license.
 
+```ruby
+require 'huborg'
+# NOTE: You will need to include GITHUB_ACCESS_TOKEN in your ENV
+client = Huborg::Client.new(org_names: ["samvera"])
+client.synchronize_mailmap!(template: '/path/to/my/MAILMAP_TEMPLATE')
+```
+
+The above will take the given template (which confirms to [Git's .mailmap
+file format](https://www.git-scm.com/docs/git-check-mailmap), then
+iterates on all of the repositories, adding any non-duplicates, then
+writing back to the template before creating pull requests against
+each of the organization's non-archived repositories.
+
 **All of the commands have several parameters, many set to default values.**
 
 ## Prerequisites
