@@ -395,7 +395,7 @@ module Huborg
         end
       end
       rels
-      logger.info "Finished rels[#{rel.inspect}] for '#{org.login}' with pattern #{repository_pattern.inspect}"
+      logger.info "Finished fetching rels[#{rel.inspect}] for '#{org.login}' with pattern #{repository_pattern.inspect}"
       if block_given?
         rels
       else
