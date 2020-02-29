@@ -114,6 +114,7 @@ module Huborg
     end
 
     # @api public
+    # @since v0.2.0
     #
     # Responsible for logging (as an error) repositories that do not
     # have a license.
@@ -148,6 +149,7 @@ module Huborg
     end
 
     # @api public
+    # @since v0.2.0
     #
     # Responsible for taking a template that confirms to Git's .mailmap
     # file format (e.g. https://github.com/samvera/maintenance/blob/master/templates/MAILMAP)
@@ -200,6 +202,7 @@ module Huborg
     end
 
     # @api public
+    # @since v0.2.0
     #
     # Clone all repositories (that match the {#repository_pattern} for
     # the given organization(s). Then and rebase any existing repositories.
