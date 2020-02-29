@@ -1,8 +1,8 @@
 # huborg
 
-Code: [![Version](https://badge.fury.io/rb/huborg.png)](http://badge.fury.io/rb/huborg)
+Code: [![Version](https://badge.fury.io/rb/huborg.svg)](https://rubygems.org/gems/huborg)
 
-Docs: [![Contribution Guidelines](http://img.shields.io/badge/CONTRIBUTING-Guidelines-blue.svg)](./CONTRIBUTING.md)
+Docs: [![Code Documentation](https://img.shields.io/badge/CODE-Documentation-blue.svg)](https://www.rubydoc.info/gems/huborg/) [![Contribution Guidelines](http://img.shields.io/badge/CONTRIBUTING-Guidelines-blue.svg)](./CONTRIBUTING.md)
 [![Apache 2.0 License](http://img.shields.io/badge/APACHE2-license-blue.svg)](./LICENSE)
 
 Jump in: [![Slack Status](http://slack.samvera.org/badge.svg)](http://slack.samvera.org/)
