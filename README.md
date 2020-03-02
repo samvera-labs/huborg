@@ -153,6 +153,7 @@ Below is the checklist:
 - [ ] Pull down the latest version of master
 - [ ] Update the Huborg::VERSION (in ./lib/huborg/version.rb); Remember, huborg
       uses [Semantic Versioning](https://semver.org). (_**NOTE:** Do not commit the version change_)
+      - [ ] To give some insight on what version to use, you can use `yard diff`. With a clean master branch, run `yard`. Then run `yard diff huborg-<Huborg::VERSION> .yardoc` (where Huborg::VERSION is something like 0.1.0 and `.yarddoc` is the output directory of `yard`).
 - [ ] Run `bundle exec rake changelog` to generate [CHANGELOG.md](./CHANGELOG.md)
 - [ ] Review the new Huborg::VERSION CHANGELOG.md entries as they might prompt
       you to consider a different version (e.g. what you thought was a bug fix
