@@ -98,6 +98,21 @@ iterates on all of the repositories, adding any non-duplicates, then
 writing back to the template before creating pull requests against
 each of the organization's non-archived repositories.
 
+```ruby
+require 'huborg'
+# NOTE: You will need to include GITHUB_ACCESS_TOKEN in your ENV
+client = Huborg::Client.new(org_names: ["samvera", "samvera-labs"])
+File.open(File.join(ENV["HOME"], "/Desktop/pull-requests.tsv"), "w+") do |file|
+  file.puts "REPO_FULL_NAME\tPR_CREATED_AT\tPR_URL\tPR_TITLE"
+  client.each_pull_request_with_repo do |pull, repo|
+    file.puts "#{repo.full_name}\t#{pull.created_at}\t#{pull.html_url}\t#{pull.title}"
+  end
+end
+```
+
+The above will write a tab separated file of all of the open pull requests for
+the non-archived samvera and samvera-labs repositories.
+
 **All of the commands have several parameters, many set to default values.**
 
 ## Prerequisites

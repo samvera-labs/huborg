@@ -256,6 +256,39 @@ module Huborg
       true
     end
 
+    # @api public
+    # @since v0.3.0
+    #
+    # Yield each pull request, and associated repository that matches the given
+    # parameters
+    #
+    # @param skip_archived [Boolean] skip any archived projects
+    # @param query [Hash] the query params to use when selecting pull requests
+    #
+    # @yieldparam [Oktokit::PullRequest] responds to #created_at, #title, #html_url, etc
+    # @yieldparam [Oktokit::Repository] responds to #full_name
+    #
+    # @example
+    #   require 'huborg'
+    #   client = Huborg::Client.new(org_names: ["samvera", "samvera-labs"])
+    #   File.open(File.join(ENV["HOME"], "/Desktop/pull-requests.tsv"), "w+") do |file|
+    #     file.puts "REPO_FULL_NAME\tPR_CREATED_AT\tPR_URL\tPR_TITLE"
+    #     client.each_pull_request_with_repo do |pull, repo|
+    #       file.puts "#{repo.full_name}\t#{pull.created_at}\t#{pull.html_url}\t#{pull.title}"
+    #     end
+    #   end
+    #
+    # @see https://developer.github.com/v3/pulls/#list-pull-requests
+    def each_pull_request_with_repo(skip_archived: true, query: { state: :open})
+      each_github_repository do |repo|
+        next if skip_archived && repo.archived?
+        fetch_rel_for(rel: :pulls, from: repo, query: query).each do |pull|
+          yield(pull, repo)
+        end
+      end
+      true
+    end
+
     private
 
     # Fetch all of the repositories for the initialized :org_names that
@@ -271,7 +304,7 @@ module Huborg
       repos = []
       org_names.each do |org_name|
         org = client.org(org_name)
-        repos += fetch_rel_for(rel: :repos, org: org)
+        repos += fetch_rel_for(rel: :repos, from: org)
       end
 
       repos.each do |repo|
@@ -376,26 +409,27 @@ module Huborg
     #
     # @param rel [Symbol] The name of the related object(s) for the
     #        given org
-    # @param org [Object] An Organization object (provided by Oktokit
-    #        object) from which this method fetchs the related :rel
+    # @param from [Object] The receiver of the rels method call. This could be
+    #        but is not limited to an Oktokit::Organization or
+    #        Oktokit::Repository.
     #
     # @return [Array<Object>]
-    def fetch_rel_for(rel:, org:)
+    def fetch_rel_for(rel:, from:, query: {})
       # Build a list of repositories, note per Github's API, these are
       # paginated.
-      logger.info "Fetching rels[#{rel.inspect}] for '#{org.login}' with pattern #{repository_pattern.inspect}"
-      source = org.rels[rel].get
+      from_to_s = from.respond_to?(:name) ? from.name : from.to_s
+      logger.info "Fetching rels[#{rel.inspect}] for '#{from_to_s}' with pattern #{repository_pattern.inspect} and query #{query.inspect}"
+      source = from.rels[rel].get(query)
       rels = []
       while source
         rels += source.data
         if source.rels[:next]
-          source = source.rels[:next].get
+          source = source.rels[:next].get(query)
         else
           source = nil
         end
       end
-      rels
-      logger.info "Finished fetching rels[#{rel.inspect}] for '#{org.login}' with pattern #{repository_pattern.inspect}"
+      logger.info "Finished fetching rels[#{rel.inspect}] for '#{from_to_s}' with pattern #{repository_pattern.inspect} and query #{query.inspect}"
       if block_given?
         rels
       else
