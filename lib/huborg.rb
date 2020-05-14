@@ -25,7 +25,7 @@ module Huborg
     # @since v0.1.0
     #
     # @param logger [Logger] used in logging output of processes
-    # @param github_access_token [String] used to connect to the Oktokit::Client.
+    # @param github_access_token [String] used to connect to the Octokit::Client.
     #        The given token will need to have permission to interact with
     #        repositories. Defaults to ENV["GITHUB_ACCESS_TOKEN"]
     # @param org_names [Array<String>, String] used as the default list of Github organizations
@@ -50,16 +50,25 @@ module Huborg
     #
     # @see https://github.com/octokit/octokit.rb#oauth-access-tokens Octokit's documentation for OAuth Tokens
     # @see https://developer.github.com/v3/repos/#list-organization-repositories Github's documentation for repository data structures
-    def initialize(logger: default_logger, github_access_token: default_access_token, org_names:, repository_pattern: DEFAULT_REPOSITORY_PATTERN)
+    def initialize(logger: default_logger,
+                   github_access_token: default_access_token,
+                   org_names:,
+                   repository_pattern: DEFAULT_REPOSITORY_PATTERN,
+                   repository_topics: default_repository_topics)
       @logger = logger
       @client = Octokit::Client.new(access_token: github_access_token)
       @org_names = Array(org_names)
       @repository_pattern = repository_pattern
+      @repository_topics = repository_topics
     end
 
     private
 
-    attr_reader :client, :logger, :org_names, :repository_pattern
+    attr_reader :client, :logger, :org_names, :repository_pattern, :repository_topics
+
+    def default_repository_topics
+      []
+    end
 
     def default_logger
       require 'logger'
@@ -265,8 +274,8 @@ module Huborg
     # @param skip_archived [Boolean] skip any archived projects
     # @param query [Hash] the query params to use when selecting pull requests
     #
-    # @yieldparam [Oktokit::PullRequest] responds to #created_at, #title, #html_url, etc
-    # @yieldparam [Oktokit::Repository] responds to #full_name
+    # @yieldparam [Octokit::PullRequest] responds to #created_at, #title, #html_url, etc
+    # @yieldparam [Octokit::Repository] responds to #full_name
     #
     # @example
     #   require 'huborg'
@@ -289,13 +298,50 @@ module Huborg
       true
     end
 
+    # @api public
+    # @since v0.4.0
+    #
+    # List every repository that will be acted upon. This is primarily to
+    # provide extra assurance to the user.
+    #
+    # @yieldparam [Octokit::Repository] responds to #full_name
+    #
+    # @example
+    #   require 'huborg'
+    #   client = Huborg::Client.new(org_names: ["samvera", "samvera-labs"], repository_topics: ['hyrax'])
+    #   client.list_repositories do |repo|
+    #     puts repo.full_name
+    #   end
+    #
+    # @see https://developer.github.com/v3/repos/#list-organization-repositories
+    #      for the response document
+    #
+    # @return [True]
+    def list_repositories
+      each_github_repository do |repo|
+        yield repo
+      end
+
+      true
+    end
+
     private
+
+    # Fetch all topics for a repository
+    #
+    # @see https://developer.github.com/v3/repos/#list-organization-repositories
+    #      for the response document
+    #
+    # @return [Array<String>] the repository's topics or an empty array
+    def topics_for(repo)
+      client.topics(repo.full_name, accept: Octokit::Preview::PREVIEW_TYPES[:topics])[:names]
+    end
 
     # Fetch all of the repositories for the initialized :org_names that
     # match the initialized :repository_pattern
     #
-    # @yield [Oktokit::Repository] each repository will be yielded
-    # @yieldparam [Oktokit::Repository]
+    # @yield [Octokit::Repository] each repository will be yielded
+    # @yieldparam [Octokit::Repository]
     # @see https://developer.github.com/v3/repos/#list-organization-repositories
     #      for the response document
     # @return [True]
@@ -308,9 +354,13 @@ module Huborg
       end
 
       repos.each do |repo|
-        block.call(repo) if repository_pattern.match?(repo.full_name)
+        next unless repository_pattern.match?(repo.full_name) &&
+                    repository_topics.all? { |specified_topic| topics_for(repo).include?(specified_topic) }
+
+        block.call(repo)
       end
-      return true
+
+      true
     end
 
     # @note Due to an implementation detail in octokit.rb, refs sometimes
@@ -340,7 +390,7 @@ module Huborg
       rescue Octokit::NotFound
         nil
       end
-      commit_message = "Adding #{filename}\n\nThis was uploaded via automation."
+      commit_message = "Adding/updating #{filename}\n\nThis was uploaded via automation."
       logger.info("Creating pull request for #{filename} on #{repo.full_name}")
       target_branch_name = "refs/heads/autoupdate-#{Time.now.utc.to_s.gsub(/\D+/,'')}"
       if copy_on_master
@@ -410,15 +460,15 @@ module Huborg
     # @param rel [Symbol] The name of the related object(s) for the
     #        given org
     # @param from [Object] The receiver of the rels method call. This could be
-    #        but is not limited to an Oktokit::Organization or
-    #        Oktokit::Repository.
+    #        but is not limited to an Octokit::Organization or
+    #        Octokit::Repository.
     #
     # @return [Array<Object>]
     def fetch_rel_for(rel:, from:, query: {})
       # Build a list of repositories, note per Github's API, these are
       # paginated.
       from_to_s = from.respond_to?(:name) ? from.name : from.to_s
-      logger.info "Fetching rels[#{rel.inspect}] for '#{from_to_s}' with pattern #{repository_pattern.inspect} and query #{query.inspect}"
+      logger.info "Fetching rels[#{rel.inspect}] for '#{from_to_s}' with pattern #{repository_pattern.inspect}, topics #{repository_topics}, and query #{query.inspect}"
       source = from.rels[rel].get(query)
       rels = []
       while source
@@ -429,7 +479,7 @@ module Huborg
           source = nil
         end
       end
-      logger.info "Finished fetching rels[#{rel.inspect}] for '#{from_to_s}' with pattern #{repository_pattern.inspect} and query #{query.inspect}"
+      logger.info "Finished fetching rels[#{rel.inspect}] for '#{from_to_s}' with pattern #{repository_pattern.inspect}, topics #{repository_topics}, and query #{query.inspect}"
       if block_given?
         rels
       else
