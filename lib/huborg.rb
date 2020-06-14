@@ -18,9 +18,9 @@ module Huborg
   # * {#synchronize_mailmap!} - ensure all git .mailmap files are
   #   synchronized
   class Client
-    # When checking repository names, this pattern will match all repositories.
-    # @see #initialize `#initialize` for details on the repository pattern.
-    DEFAULT_REPOSITORY_PATTERN = %r{\A.*\Z}
+    # When listing repositories, this callable will return all repositories.
+    # @see #initialize `#initialize` for details on the repository filter.
+    DEFAULT_REPOSITORY_FILTER = ->(client, repo) { true }
 
     # @since v0.1.0
     #
@@ -28,9 +28,11 @@ module Huborg
     # @param github_access_token [String] used to connect to the Octokit::Client.
     #        The given token will need to have permission to interact with
     #        repositories. Defaults to ENV["GITHUB_ACCESS_TOKEN"]
-    # @param org_names [Array<String>, String] used as the default list of Github organizations
-    #        in which we'll interact.
-    # @param repository_pattern [Regexp] limit the list of repositories to the given pattern; defaults to ALL
+    # @param org_names [Array<String>, String] list of GitHub organizations
+    #        Huborg will act on
+    # @param repository_filter [Proc<Octokit::Client,Octokit::Repository>] filter
+    #        the list of repositories to those for those which the callable returns
+    #        true; defaults to ALL
     #
     # @example
     #   # Without configuration options. You'll want ENV["GITHUB_ACCESS_TOKEN"]
@@ -42,33 +44,27 @@ module Huborg
     #   # insensitivity is declared as the `i` at the end of the regular
     #   # expression).
     #   client = Huborg::Client.new(
-    #                               logger: Logger.new(STDOUT),
-    #                               github_access_token: "40-random-characters-for-your-token",
-    #                               org_names: ["samvera", "samvera-labs"],
-    #                               repository_patter: %r{hyrax}i
-    #                              )
+    #     logger: Logger.new(STDOUT),
+    #     github_access_token: "40-random-characters-for-your-token",
+    #     org_names: ["samvera", "samvera-labs"],
+    #     repository_filter: ->(client, repo) { repo.full_name.match?(/.*hyrax.*/) }
+    #   )
     #
     # @see https://github.com/octokit/octokit.rb#oauth-access-tokens Octokit's documentation for OAuth Tokens
     # @see https://developer.github.com/v3/repos/#list-organization-repositories Github's documentation for repository data structures
-    def initialize(logger: default_logger,
+    def initialize(org_names:,
+                   logger: default_logger,
                    github_access_token: default_access_token,
-                   org_names:,
-                   repository_pattern: DEFAULT_REPOSITORY_PATTERN,
-                   repository_topics: default_repository_topics)
+                   repository_filter: DEFAULT_REPOSITORY_FILTER)
+      @org_names = Array(org_names)
       @logger = logger
       @client = Octokit::Client.new(access_token: github_access_token)
-      @org_names = Array(org_names)
-      @repository_pattern = repository_pattern
-      @repository_topics = repository_topics
+      @repository_filter = repository_filter
     end
 
     private
 
-    attr_reader :client, :logger, :org_names, :repository_pattern, :repository_topics
-
-    def default_repository_topics
-      []
-    end
+    attr_reader :client, :logger, :org_names, :repository_filter
 
     def default_logger
       require 'logger'
@@ -207,13 +203,14 @@ module Huborg
         next if repo.archived?
         push_template_to!(filename: ".mailmap", template: consolidated_template, repo: repo, overwrite: true)
       end
-      return true
+
+      true
     end
 
     # @api public
     # @since v0.2.0
     #
-    # Clone all repositories (that match the {#repository_pattern} for
+    # Clone all repositories (that match the {#repository_filter} for
     # the given organization(s). Then and rebase any existing repositories.
     #
     # @param directory [String] the directory in which to clone the repositories
@@ -308,7 +305,14 @@ module Huborg
     #
     # @example
     #   require 'huborg'
-    #   client = Huborg::Client.new(org_names: ["samvera", "samvera-labs"], repository_topics: ['hyrax'])
+    #   client = Huborg::Client.new(
+    #     org_names: ["samvera", "samvera-labs"],
+    #     repository_filter: ->(client, repo) {
+    #       ['infrastructure', 'gem'].all? { |topic|
+    #         client.topics(repo.full_name, accept: Octokit::Preview::PREVIEW_TYPES[:topics])[:names].include?(topic)
+    #       }
+    #     }
+    #   )
     #   client.list_repositories do |repo|
     #     puts repo.full_name
     #   end
@@ -327,18 +331,8 @@ module Huborg
 
     private
 
-    # Fetch all topics for a repository
-    #
-    # @see https://developer.github.com/v3/repos/#list-organization-repositories
-    #      for the response document
-    #
-    # @return [Array<String>] the repository's topics or an empty array
-    def topics_for(repo)
-      client.topics(repo.full_name, accept: Octokit::Preview::PREVIEW_TYPES[:topics])[:names]
-    end
-
-    # Fetch all of the repositories for the initialized :org_names that
-    # match the initialized :repository_pattern
+    # Fetch all of the repositories for the initialized :org_names for which
+    # the initialized :repository_filter returns true
     #
     # @yield [Octokit::Repository] each repository will be yielded
     # @yieldparam [Octokit::Repository]
@@ -354,8 +348,7 @@ module Huborg
       end
 
       repos.each do |repo|
-        next unless repository_pattern.match?(repo.full_name) &&
-                    repository_topics.all? { |specified_topic| topics_for(repo).include?(specified_topic) }
+        next unless repository_filter.call(client, repo)
 
         block.call(repo)
       end
@@ -395,7 +388,7 @@ module Huborg
       target_branch_name = "refs/heads/autoupdate-#{Time.now.utc.to_s.gsub(/\D+/,'')}"
       if copy_on_master
         return unless overwrite
-        branch = client.create_reference(repo.full_name, target_branch_name, master.object.sha)
+        client.create_reference(repo.full_name, target_branch_name, master.object.sha)
         client.update_contents(
           repo.full_name,
           filename,
@@ -406,7 +399,7 @@ module Huborg
         )
         client.create_pull_request(repo.full_name, "refs/heads/master", target_branch_name, commit_message)
       else
-        branch = client.create_reference(repo.full_name, target_branch_name, master.object.sha)
+        client.create_reference(repo.full_name, target_branch_name, master.object.sha)
         client.create_contents(
           repo.full_name,
           filename,
@@ -468,7 +461,7 @@ module Huborg
       # Build a list of repositories, note per Github's API, these are
       # paginated.
       from_to_s = from.respond_to?(:name) ? from.name : from.to_s
-      logger.info "Fetching rels[#{rel.inspect}] for '#{from_to_s}' with pattern #{repository_pattern.inspect}, topics #{repository_topics}, and query #{query.inspect}"
+      logger.info "Fetching rels[#{rel.inspect}] for '#{from_to_s}' with filter #{repository_filter.inspect}, and query #{query.inspect}"
       source = from.rels[rel].get(query)
       rels = []
       while source
@@ -479,7 +472,7 @@ module Huborg
           source = nil
         end
       end
-      logger.info "Finished fetching rels[#{rel.inspect}] for '#{from_to_s}' with pattern #{repository_pattern.inspect}, topics #{repository_topics}, and query #{query.inspect}"
+      logger.info "Finished fetching rels[#{rel.inspect}] for '#{from_to_s}' with filter #{repository_filter.inspect}, and query #{query.inspect}"
       if block_given?
         rels
       else
