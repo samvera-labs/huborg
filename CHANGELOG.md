@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.3.1](https://github.com/samvera-labs/huborg/tree/v0.3.1) (2020-06-14)
+
+[Full Changelog](https://github.com/samvera-labs/huborg/compare/v0.3.0...v0.3.1)
+
+**Merged pull requests:**
+
+- Favoring default\_branch instead of "master" [\#15](https://github.com/samvera-labs/huborg/pull/15) ([jeremyf](https://github.com/jeremyf))
+- Collapse repository filtering into a single callable [\#13](https://github.com/samvera-labs/huborg/pull/13) ([mjgiarlo](https://github.com/mjgiarlo))
+- Update license with full Apache 2.0 license [\#12](https://github.com/samvera-labs/huborg/pull/12) ([mjgiarlo](https://github.com/mjgiarlo))
+- Allow filtering repositories by one or more topics [\#11](https://github.com/samvera-labs/huborg/pull/11) ([mjgiarlo](https://github.com/mjgiarlo))
+
 ## [v0.3.0](https://github.com/samvera-labs/huborg/tree/v0.3.0) (2020-04-28)
 
 [Full Changelog](https://github.com/samvera-labs/huborg/compare/v0.2.0...v0.3.0)
