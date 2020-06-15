@@ -1,3 +1,4 @@
+# coding: utf-8
 require "huborg/version"
 require 'octokit'
 require 'git'
@@ -357,7 +358,7 @@ module Huborg
     end
 
     # @note Due to an implementation detail in octokit.rb, refs sometimes
-    #       need to be "heads/master" and "refs/heads/master" as detailed
+    #       need to be "heads/<branch>" and "refs/heads/<branch>" as detailed
     #       below
     # @param repo [#full_name, #archived] Likely the result of Octokit::Client#org
     # @param template [String] name of the template to push out to all
@@ -371,11 +372,11 @@ module Huborg
     #        would likely want to overwrite.
     def push_template_to!(repo:, template:, filename:, overwrite: false)
       return if repo.archived
-      # Note: Sometimes I'm using "heads/master" and other times I'm using
-      #       "refs/heads/master". There appears to be an inconsistency in
+      # Note: Sometimes I'm using "heads/<default>" and other times I'm using
+      #       "refs/heads/<default>". There appears to be an inconsistency in
       #       the implementation of octokit.
-      master = client.ref(repo.full_name, "heads/master")
-      copy_on_master = begin
+      default_branch = client.ref(repo.full_name, "heads/#{repo.default_branch}")
+      filename_ref_on_default_branch = begin
         # I have seen both a return value of nil or seen raised an Octokit::NotFound
         # exception (one for a file at root, the other for a file in a non-existent
         # directory)
@@ -386,20 +387,20 @@ module Huborg
       commit_message = "Adding/updating #{filename}\n\nThis was uploaded via automation."
       logger.info("Creating pull request for #{filename} on #{repo.full_name}")
       target_branch_name = "refs/heads/autoupdate-#{Time.now.utc.to_s.gsub(/\D+/,'')}"
-      if copy_on_master
+      if filename_ref_on_default_branch
         return unless overwrite
-        client.create_reference(repo.full_name, target_branch_name, master.object.sha)
+        client.create_reference(repo.full_name, target_branch_name, default_branch.object.sha)
         client.update_contents(
           repo.full_name,
           filename,
           commit_message,
-          copy_on_master.sha,
+          filename_ref_on_default_branch.sha,
           file: File.new(template, "r"),
           branch: target_branch_name
         )
-        client.create_pull_request(repo.full_name, "refs/heads/master", target_branch_name, commit_message)
+        client.create_pull_request(repo.full_name, "refs/heads/#{repo.default_branch}", target_branch_name, commit_message)
       else
-        client.create_reference(repo.full_name, target_branch_name, master.object.sha)
+        client.create_reference(repo.full_name, target_branch_name, default_branch.object.sha)
         client.create_contents(
           repo.full_name,
           filename,
@@ -407,7 +408,7 @@ module Huborg
           file: File.new(template, "r"),
           branch: target_branch_name
         )
-        client.create_pull_request(repo.full_name, "refs/heads/master", target_branch_name, commit_message)
+        client.create_pull_request(repo.full_name, "refs/heads/#{repo.default_branch}", target_branch_name, commit_message)
       end
     end
 
@@ -434,9 +435,9 @@ module Huborg
             git.branch.stashes.save("Stashing via #{self.class}#clone_and_rebase!")
           end
         end
-        git.branch("master").checkout
-        logger.info("Pulling down master branch from origin for #{repo_path}")
-        git.pull("origin", "master")
+        git.branch(repo.default_branch).checkout
+        logger.info("Pulling down #{repo.default_branch} branch from origin for #{repo_path}")
+        git.pull("origin", repo.default_branch)
       else
         parent_directory = File.dirname(repo_path)
         logger.info("Creating #{parent_directory}")
