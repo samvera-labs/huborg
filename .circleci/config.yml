@@ -1,0 +1,80 @@
+version: 2.1
+orbs:
+  samvera: samvera/circleci-orb@1.0
+jobs:
+  ci:
+    parameters:
+      ruby_version:
+        type: string
+      bundler_version:
+        type: string
+        default: 2.3.11
+      ruby_type:
+        type: string
+        default: 'ruby'
+    docker:
+      - image: cimg/<< parameters.ruby_type >>:<< parameters.ruby_version >>-browsers
+    environment:
+      BUNDLE_PATH: vendor/bundle
+      BUNDLE_JOBS: 4
+      BUNDLE_RETRY: 3
+      SPEC_OPTS: --profile 10 --format RspecJunitFormatter --out /tmp/test-results/rspec.xml --format progress
+    steps:
+      - samvera/cached_checkout
+      - checkout
+      - run:
+          name: Check for 'master' branch
+          command: |
+              git fetch --all --quiet --prune --prune-tags
+              if [[ -n "$(git branch --all --list master */master)" ]]; then
+                  echo "A branch named 'master' was found. Please remove it."
+                  echo "$(git branch --all --list master */master)"
+              fi
+              [[ -z "$(git branch --all --list master */master)" ]]
+
+      - samvera/bundle_for_gem:
+          ruby_version: << parameters.ruby_version >>
+          bundler_version: << parameters.bundler_version >>
+          project: 'huborg'
+
+      - samvera/rubocop
+
+      - samvera/parallel_rspec
+
+workflows:
+  ci:
+    jobs:
+      # Ruby 3.3 releases
+      - ci:
+          name: ruby3-3
+          ruby_version: 3.3.4
+      # Ruby 3.2 releases
+      - ci:
+          name: ruby3-2
+          ruby_version: 3.2.5
+      # Ruby 3.1 releases
+      - ci:
+          name: ruby3-1
+          ruby_version: 3.1.6
+
+  nightly:
+    triggers:
+      - schedule:
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only:
+                - main
+    jobs:
+      # Ruby 3.3 releases
+      - ci:
+          name: ruby3-3
+          ruby_version: 3.3.4
+      # Ruby 3.2 releases
+      - ci:
+          name: ruby3-2
+          ruby_version: 3.2.5
+      # Ruby 3.1 releases
+      - ci:
+          name: ruby3-1
+          ruby_version: 3.1.6
