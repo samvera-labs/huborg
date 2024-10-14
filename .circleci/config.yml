@@ -39,7 +39,8 @@ jobs:
 
       - samvera/rubocop
 
-      - samvera/parallel_rspec
+      # RSpec tests have not been implemented
+      # - samvera/parallel_rspec
 
 workflows:
   ci:
