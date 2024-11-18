@@ -1,5 +1,6 @@
-# coding: utf-8
-require "huborg/version"
+# frozen_string_literal: true
+
+require 'huborg/version'
 require 'octokit'
 require 'git'
 require 'fileutils'
@@ -18,10 +19,12 @@ module Huborg
   # * {#audit_license} - tooling to check the licenses of your org
   # * {#synchronize_mailmap!} - ensure all git .mailmap files are
   #   synchronized
+
+  # rubocop:disable Metrics/ClassLength
   class Client
     # When listing repositories, this callable will return all repositories.
     # @see #initialize `#initialize` for details on the repository filter.
-    DEFAULT_REPOSITORY_FILTER = ->(client, repo) { true }
+    DEFAULT_REPOSITORY_FILTER = ->(_client, _repo) { true }
 
     # @since v0.1.0
     #
@@ -51,8 +54,11 @@ module Huborg
     #     repository_filter: ->(client, repo) { repo.full_name.match?(/.*hyrax.*/) }
     #   )
     #
+    # rubocop:disable Layout/LineLength
     # @see https://github.com/octokit/octokit.rb#oauth-access-tokens Octokit's documentation for OAuth Tokens
     # @see https://developer.github.com/v3/repos/#list-organization-repositories Github's documentation for repository data structures
+    # rubocop:enable Layout/LineLength
+
     def initialize(org_names:,
                    logger: default_logger,
                    github_access_token: default_access_token,
@@ -69,15 +75,15 @@ module Huborg
 
     def default_logger
       require 'logger'
-      Logger.new(STDOUT)
+      Logger.new($stdout)
     end
 
     def default_access_token
       ENV.fetch('GITHUB_ACCESS_TOKEN')
-    rescue KeyError => e
+    rescue KeyError
       message = "You need to provide an OAuth Access Token.\nSee: https://github.com/octokit/octokit.rb#oauth-access-tokens"
-      $stderr.puts message
-      raise Error.new(message)
+      warn message
+      raise Error, message
     end
 
     public
@@ -137,15 +143,22 @@ module Huborg
     # @see https://api.github.com/licenses Github's documentation for a list of license keys
     # @return [True] the task completed without exception (there may be
     #         logged errors)
+
+    # rubocop:disable Metrics/AbcSize
+    # rubocop:disable Metrics/CyclomaticComplexity
+    # rubocop:disable Metrics/MethodLength
+    # rubocop:disable Metrics/PerceivedComplexity
     def audit_license(skip_private: true, skip_archived: true, allowed_licenses: :all)
       license_list = Array(allowed_licenses)
       each_github_repository do |repo|
         next if skip_private && repo.private?
         next if skip_archived && repo.archived?
+
         if repo.license
           logger.info(%(#{repo.fullname} has "#{repo.license.key}"))
           next if allowed_licenses == :all
           next if license_list.include?(repo.license.key)
+
           logger.error(%(#{repo.full_name} has "#{repo.license.key}" which is not in #{license_list.inspect}))
         else
           logger.error("#{repo.full_name} is missing a license")
@@ -153,6 +166,10 @@ module Huborg
       end
       true
     end
+    # rubocop:enable Metrics/AbcSize
+    # rubocop:enable Metrics/CyclomaticComplexity
+    # rubocop:enable Metrics/MethodLength
+    # rubocop:enable Metrics/PerceivedComplexity
 
     # @api public
     # @since v0.2.0
@@ -175,6 +192,9 @@ module Huborg
     #      for more on git's .mailmap file
     # @todo Ensure that this doesn't create a pull request if nothing
     #       has changed.
+
+    # rubocop:disable Metrics/AbcSize
+    # rubocop:disable Metrics/MethodLength
     def synchronize_mailmap!(template:, consolidated_template: template)
       mailmap_lines = Set.new
       File.read(template).split("\n").each do |line|
@@ -182,19 +202,17 @@ module Huborg
       end
 
       each_github_repository do |repo|
-        begin
-          mailmap = client.contents(repo.full_name, path: '.mailmap')
-          lines = mailmap.rels[:download].get.data
-          lines.split("\n").each do |line|
-            mailmap_lines << line
-          end
-        rescue Octokit::NotFound
-          next
+        mailmap = client.contents(repo.full_name, path: '.mailmap')
+        lines = mailmap.rels[:download].get.data
+        lines.split("\n").each do |line|
+          mailmap_lines << line
         end
+      rescue Octokit::NotFound
+        next
       end
 
       # Write the contents to a file
-      File.open(consolidated_template, "w+") do |file|
+      File.open(consolidated_template, 'w+') do |file|
         mailmap_lines.to_a.sort.each do |line|
           file.puts line
         end
@@ -202,11 +220,14 @@ module Huborg
 
       each_github_repository do |repo|
         next if repo.archived?
-        push_template_to!(filename: ".mailmap", template: consolidated_template, repo: repo, overwrite: true)
+
+        push_template_to!(filename: '.mailmap', template: consolidated_template, repo: repo, overwrite: true)
       end
 
       true
     end
+    # rubocop:enable Metrics/AbcSize
+    # rubocop:enable Metrics/MethodLength
 
     # @api public
     # @since v0.2.0
@@ -254,14 +275,18 @@ module Huborg
     #    └── raft
     #
     # @return [True] if successfully completed
-    def clone_and_rebase!(directory:, skip_forked: false, skip_archived: false, skip_dirty: true, force: false, shallow: false)
+    # rubocop:disable Metrics/ParameterLists
+    def clone_and_rebase!(directory:, skip_forked: false, skip_archived: false, skip_dirty: true, force: false,
+                          shallow: false)
       each_github_repository do |repo|
         next if skip_archived && repo.archived?
         next if skip_forked && repo.fork?
+
         clone_and_rebase_one!(repo: repo, directory: directory, skip_dirty: skip_dirty, force: force, shallow: shallow)
       end
       true
     end
+    # rubocop:enable Metrics/ParameterLists
 
     # @api public
     # @since v0.3.0
@@ -286,9 +311,10 @@ module Huborg
     #   end
     #
     # @see https://developer.github.com/v3/pulls/#list-pull-requests
-    def each_pull_request_with_repo(skip_archived: true, query: { state: :open})
+    def each_pull_request_with_repo(skip_archived: true, query: { state: :open })
       each_github_repository do |repo|
         next if skip_archived && repo.archived?
+
         fetch_rel_for(rel: :pulls, from: repo, query: query).each do |pull|
           yield(pull, repo)
         end
@@ -322,10 +348,8 @@ module Huborg
     #      for the response document
     #
     # @return [True]
-    def list_repositories
-      each_github_repository do |repo|
-        yield repo
-      end
+    def list_repositories(&block)
+      each_github_repository(&block)
 
       true
     end
@@ -370,9 +394,13 @@ module Huborg
     #        overwrite what already exists. In the case of a LICENSE, we
     #        would not want to do that. In the case of a .mailmap, we
     #        would likely want to overwrite.
+
+    # rubocop:disable Metrics/AbcSize
+    # rubocop:disable Metrics/MethodLength
     def push_template_to!(repo:, template:, filename:, overwrite: false)
       return if repo.archived
-      # Note: Sometimes I'm using "heads/<default>" and other times I'm using
+
+      # NOTE: Sometimes I'm using "heads/<default>" and other times I'm using
       #       "refs/heads/<default>". There appears to be an inconsistency in
       #       the implementation of octokit.
       default_branch = client.ref(repo.full_name, "heads/#{repo.default_branch}")
@@ -386,32 +414,39 @@ module Huborg
       end
       commit_message = "Adding/updating #{filename}\n\nThis was uploaded via automation."
       logger.info("Creating pull request for #{filename} on #{repo.full_name}")
-      target_branch_name = "refs/heads/autoupdate-#{Time.now.utc.to_s.gsub(/\D+/,'')}"
+      target_branch_name = "refs/heads/autoupdate-#{Time.now.utc.to_s.gsub(/\D+/, '')}"
       if filename_ref_on_default_branch
         return unless overwrite
+
         client.create_reference(repo.full_name, target_branch_name, default_branch.object.sha)
         client.update_contents(
           repo.full_name,
           filename,
           commit_message,
           filename_ref_on_default_branch.sha,
-          file: File.new(template, "r"),
+          file: File.new(template, 'r'),
           branch: target_branch_name
         )
-        client.create_pull_request(repo.full_name, "refs/heads/#{repo.default_branch}", target_branch_name, commit_message)
       else
         client.create_reference(repo.full_name, target_branch_name, default_branch.object.sha)
         client.create_contents(
           repo.full_name,
           filename,
           commit_message,
-          file: File.new(template, "r"),
+          file: File.new(template, 'r'),
           branch: target_branch_name
         )
-        client.create_pull_request(repo.full_name, "refs/heads/#{repo.default_branch}", target_branch_name, commit_message)
       end
+      client.create_pull_request(repo.full_name, "refs/heads/#{repo.default_branch}", target_branch_name,
+                                 commit_message)
     end
+    # rubocop:enable Metrics/AbcSize
+    # rubocop:enable Metrics/MethodLength
 
+    # rubocop:disable Metrics/AbcSize
+    # rubocop:disable Metrics/CyclomaticComplexity
+    # rubocop:disable Metrics/MethodLength
+    # rubocop:disable Metrics/PerceivedComplexity
     def clone_and_rebase_one!(repo:, directory:, skip_dirty: true, force: false, shallow: false)
       repo_path = shallow ? File.join(directory, repo.name) : File.join(directory, repo.full_name)
       if File.directory?(repo_path)
@@ -437,7 +472,7 @@ module Huborg
         end
         git.branch(repo.default_branch).checkout
         logger.info("Pulling down #{repo.default_branch} branch from origin for #{repo_path}")
-        git.pull("origin", repo.default_branch)
+        git.pull('origin', repo.default_branch)
       else
         parent_directory = File.dirname(repo_path)
         logger.info("Creating #{parent_directory}")
@@ -448,6 +483,10 @@ module Huborg
         logger.info("Finished cloning #{repo.name} into #{parent_directory}")
       end
     end
+    # rubocop:enable Metrics/AbcSize
+    # rubocop:enable Metrics/CyclomaticComplexity
+    # rubocop:enable Metrics/MethodLength
+    # rubocop:enable Metrics/PerceivedComplexity
 
     # Responsible for fetching an array of the given :rel
     #
@@ -458,27 +497,31 @@ module Huborg
     #        Octokit::Repository.
     #
     # @return [Array<Object>]
+
+    # rubocop:disable Metrics/AbcSize
+    # rubocop:disable Metrics/MethodLength
     def fetch_rel_for(rel:, from:, query: {})
       # Build a list of repositories, note per Github's API, these are
       # paginated.
       from_to_s = from.respond_to?(:name) ? from.name : from.to_s
+      # rubocop:disable Layout/LineLength
       logger.info "Fetching rels[#{rel.inspect}] for '#{from_to_s}' with filter #{repository_filter.inspect}, and query #{query.inspect}"
+      # rubocop:enable Layout/LineLength
       source = from.rels[rel].get(query)
       rels = []
       while source
         rels += source.data
-        if source.rels[:next]
-          source = source.rels[:next].get(query)
-        else
-          source = nil
-        end
+        source = source.rels[:next]&.get(query)
       end
+      # rubocop:disable Layout/LineLength
       logger.info "Finished fetching rels[#{rel.inspect}] for '#{from_to_s}' with filter #{repository_filter.inspect}, and query #{query.inspect}"
-      if block_given?
-        rels
-      else
-        return rels
-      end
+      # rubocop:enable Layout/LineLength
+      return rels unless block_given?
+
+      rels
     end
+    # rubocop:enable Metrics/AbcSize
+    # rubocop:enable Metrics/MethodLength
   end
+  # rubocop:enable Metrics/ClassLength
 end
